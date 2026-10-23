@@ -1,4 +1,75 @@
 services:
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8080:80/tcp"
+      - "8443:443/tcp"
+    environment:
+      TZ: UTC
+      WEBPASSWORD: change-this-password
+    volumes:
+      - /opt/homelab/pihole/etc:/etc/pihole
+      - /opt/homelab/pihole/dnsmasq:/etc/dnsmasq.d
+    cap_add:
+      - NET_ADMIN
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+
+  ndata:
+    image: n8nio/n8n:latest
+    container_name: ndata
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - /opt/homelab/ndata:/home/node/.n8n
+
+  dashboard:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - /opt/homelab/dashboard:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  glance:
+    image: glanceapp/glance:latest
+    container_name: glance
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    volumes:
+      - /opt/homelab/glance:/app/config
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - /opt/homelab/uptime-kuma:/app/data
+
   downtify:
     image: ghcr.io/henriquesebastiao/downtify:latest
     container_name: downtify
@@ -8,8 +79,54 @@ services:
     environment:
       - DOWNTIFY_PORT=30321
     volumes:
-      - ./downloads:/downloads
+      - /opt/homelab/downloads:/downloads
       - downtify_data:/data
 
+  nexus:
+    image: sonatype/nexus3:latest
+    container_name: nexus
+    restart: unless-stopped
+    ports:
+      - "8082:8081"
+    volumes:
+      - nexus_data:/nexus-data
+
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "81:81"
+      - "444:444"
+    volumes:
+      - /opt/homelab/npm/data:/data
+      - /opt/homelab/npm/letsencrypt:/etc/letsencrypt
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    hostname: homelab
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    environment:
+      - TS_AUTHKEY=tskey-xxxxxxxxxxxxxxxx
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+    volumes:
+      - /opt/homelab/tailscale:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel --no-autoupdate run --config /etc/cloudflared/config.yml
+    volumes:
+      - /etc/cloudflared:/etc/cloudflared:ro
+
 volumes:
+  portainer_data:
   downtify_data:
+  nexus_data:
